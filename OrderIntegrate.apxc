@@ -1,0 +1,294 @@
+public class OrderIntegrate{
+
+    public string requestJson{get;set;}
+    public string requestResponse{get;set;}
+    
+    public OrderIntegrate(ApexPages.StandardController controller) {
+        requestJson ='';        
+        //sendRequest();        
+    }
+    
+    public void sendRequest(){
+        string orderId = ApexPages.currentPage().getParameters().get('id');
+        if(string.isNotEmpty(orderId)){
+            Order orderObj = new order();
+            orderObj = [SELECT Id,OwnerId,Project_Manager__r.EmployeeNumber, Deltek_Project_Number__c,OrderNumber,AccountId,BillToContactid,Billing_Client__c,Project_Long_Name__c,Project_Short_Name__c,Name,Status,Project_Total__c,P2S_Labor_Total__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Deltek_Org__c,EffectiveDate,EndDate,Deltek_Market_Segment_Code__c FROM order WHERE id =: orderId LIMIT 1];            
+            User PIROwner = [SELECT EmployeeNumber FROM User WHERE Id=:orderObj.OwnerId];
+            if(orderObj != null){
+                try{  
+                    ProjectObj projWrap = new ProjectObj(orderObj.Deltek_Project_Number__c, orderObj.Id,orderObj.Project_Long_Name__c,orderObj.Project_Short_Name__c, orderObj.Status, PIROwner.EmployeeNumber, orderObj.Project_Manager__r.EmployeeNumber, orderObj.P2S_Labor_Total__c, orderObj.Direct_Expense__c, orderObj.Reimbursable_Expense__c, orderObj.Direct_Consultant__c, orderObj.Deltek_Org__c,orderObj.EffectiveDate, orderObj.EndDate, orderObj.Deltek_Market_Segment_Code__c, orderObj.Project_Total__c);
+                   
+                    Account acc = [SELECT Id,name,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.AccountId LIMIT 1];
+                    Account billingAcc = null;
+                    ClientObj billingClientWrap = null;
+                    if(orderObj.Billing_Client__c != null){
+                    	billingAcc = [SELECT Id,name,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.Billing_Client__c LIMIT 1];
+                    	billingClientWrap = new ClientObj(billingAcc.id,billingAcc.name,billingAcc.BillingStreet,billingAcc.BillingCity,billingAcc.BillingState,billingAcc.BillingPostalCode, billingAcc.BillingCountry, billingAcc.Phone, billingAcc.Fax,billingAcc.Status__c,billingAcc.Deltek_Client_ID__c,billingAcc.Website,billingAcc.Client_Number__c);
+                    }
+                    ClientObj clientWrap = new ClientObj(acc.id,acc.name,acc.BillingStreet,acc.BillingCity,acc.BillingState,acc.BillingPostalCode, acc.BillingCountry, acc.Phone, acc.Fax,acc.Status__c,acc.Deltek_Client_ID__c,acc.Website,acc.Client_Number__c);
+                    
+                    
+                    Contact con = [SELECT Id,AccountId,FirstName,lastName,Email,Phone,Fax,MobilePhone,Salutation,Title,Deltek_Contact_ID__c,Account.Deltek_Client_ID__c FROM Contact WHERE Id =: orderObj.BillToContactid LIMIT 1];
+                    ContactObj conWrap = new ContactObj(con.id,con.FirstName,con.lastName,con.email,con.Phone,con.Fax,con.MobilePhone,con.Salutation,con.Title,con.Deltek_Contact_ID__c,con.Account.Deltek_Client_ID__c, con.AccountId);                    
+                      
+                    list<Phase__c>lstPhase = [SELECT Id,Name,Deltek_Phase_Number__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Project_Manager__c,Start_Date__c,P2S_Contract__r.Name,P2S_Contract__r.Contract_Status__c,P2S_Contract__r.Contract_Type__c, Deltek_Contract_Status__c, Deltek_Contract_Type__c FROM Phase__c WHERE PIR__c =: orderObj.Id LIMIT 10000];
+                    list<Phase>lstPhaseWrap = new list<Phase>();
+                    if(!lstPhase.isEmpty()){
+                        for(Phase__c phaseRec : lstPhase){
+                            Phase phaseWrap = new Phase(phaseRec.Deltek_Phase_Number__c, phaseRec.Deltek_Phase_Name__c,string.valueOf(phaseRec.id),phaseRec.Status__c,phaseRec.Project_Manager__c,phaseRec.P2S_Labor_Formula__c,phaseRec.Direct_Expense__c,phaseRec.Reimbursable_Expense__c,phaseRec.Direct_Consultant__c,phaseRec.Start_Date__c, phaseRec.Phase_Total__c,phaseRec.P2S_Contract__r.Name,phaseRec.Deltek_Contract_Status__c,phaseRec.Deltek_Contract_Type__c);
+                            lstPhaseWrap.add(phaseWrap);
+                        }
+                    }
+                    jsonGenerator jsonGen = new jsonGenerator(clientWrap,billingClientWrap,conWrap,projWrap,lstPhaseWrap);                
+                    this.requestJson = JSON.serialize(jsonGen);
+                    
+                    Http httpProtocol = new Http();
+                    httpRequest req = new httpRequest();
+                    //req.setEndpoint('http://requestb.in/1aytjqz1');
+                    req.setEndpoint('http://relationedgesalesforce.dev.visionconnector.com/fullsailrestservice');
+                    req.setMethod('POST');
+                    req.setHeader('Accept', 'application/json');
+                    req.setHeader('Content-Type', 'text/x-json');
+                    req.setHeader('Username', 'jsun@relationedge.com');
+                    req.setHeader('Password', 'P2SIntegration123!');
+                    req.setHeader('Product', 'SalesforceRelationedge');
+                    req.setHeader('ProductInstance', 'P2SDevelopment');
+                    req.setHeader('ProductInstanceMethod', 'SendProjectData');                
+                    req.setBody(requestJson);
+                    req.setTimeout(60000);
+                    //req.setBody('testing');
+                    HttpResponse res = httpProtocol.send(req);
+                    string strResponse = string.valueOf(res.getBody());
+                    requestResponse = strResponse; //debug output to page
+                    
+                    /*jsonResponseClass jsonResp = (jsonResponseClass)JSON.deserialize(strResponse, jsonResponseClass.class);
+                    if(jsonResp != null)
+                        requestReponse = jsonResp.Authentication;*/
+                    //system.debug('###__'+requestReponse+'__'+strResponse);
+                    //system.debug('###__' +strResponse);
+                }
+                catch(exception e){
+                    ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.Error,e.getMessage()));
+                	system.debug('Send Request Error----' + e.getMessage() + 'Line---' + e.getLineNumber()); 
+                }
+            }            
+        }
+    }
+    
+    public class jsonResponseClass{
+        public string Authentication;
+    }
+    public class jsonGenerator{        
+        public ClientObj Client;
+        public ClientObj billingClient;
+        public ContactObj Contact;        
+        public ProjectObj Project;
+        public Phase[] Phases;
+        
+        public jsonGenerator(ClientObj clientVal, ClientObj billingClientVal, ContactObj conObjVal,ProjectObj projectVal,List<Phase>lstPhase){
+            this.Client = clientVal;
+            this.billingClient = billingClientVal;
+            this.Contact = conObjVal;
+            this.Project = projectVal;
+            this.Phases = lstPhase;
+        }
+    }
+
+//Id,Name,Deltek_Phase_Number__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Project_Manager__c,Start_Date__c
+    
+    public class Phase{
+        public String WBS2;
+        public String Name;
+        public String LongName;
+        public String PhaseSFID;
+        public String Status;
+        public String ProjMgr;
+        public Decimal FeeDirLab = 0;
+        public Decimal FeeDirExp = 0;
+        public Decimal ReimbAllowCons = 0;
+        public Decimal DirectConsultant = 0;
+        public Date StartDate;
+        public Decimal PhaseTotal = 0;
+        public String ContractNumber;
+        public String ContractType;
+        public String ContractStatus;
+        
+        public Phase(String phaseNumVal, String nameVal, String idVal, String statusVal, 
+                     String projMgrVal, Decimal feeDirLabVal, Decimal feeDirExpVal, Decimal reimbVal,
+                     Decimal directConsultantVal, Date startDateVal, Decimal totalVal, String contractNumVal, 
+                     String contractTypeVal, String contractStatusVal){
+                         
+            this.WBS2 = phaseNumVal;
+            this.Name = nameVal;
+            this.LongName = nameVal;
+            this.PhaseSFID = idVal;
+            if(statusVal != null){ 
+            	this.Status = statusVal.left(1).toUpperCase();
+            }
+            if(projMgrVal != null){
+            	this.ProjMgr = projMgrVal.right(3).leftPad(4,'0');
+            }
+            this.FeeDirLab = (feeDirLabVal == null) ? 0 : feeDirLabVal;
+            this.FeeDirExp = (feeDirExpVal == null) ? 0 : feeDirExpVal;
+            this.ReimbAllowCons = (reimbVal == null) ? 0 : reimbVal;
+            this.DirectConsultant = (directConsultantVal == null) ? 0 : directConsultantVal;
+            this.StartDate = startDateVal;
+            this.PhaseTotal = totalVal;
+            this.ContractNumber = contractNumVal;
+            //To-do: Parse the codes from the Picklist values for passing to Deltek
+            if(contractTypeVal != null){
+            	this.ContractType = contractTypeVal.right(2);
+            } 
+            if(contractTypeVal != null){
+            	this.ContractStatus = contractStatusVal.right(2);
+            }                                                
+        }
+    }
+
+//[SELECT Id,Deltek_Project_Number__c,OrderNumber,AccountId,BillToContactid,Billing_Client__c,Project_Long_Name__c,Project_Short_Name__c,Name,Status,Project_Total__c,P2S_Labor_Total__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Deltek_Org__c,EffectiveDate,EndDate,Deltek_Market_Segment_Code__c FROM order WHERE id =: orderId LIMIT 1];            
+    
+    public class ProjectObj{
+        public String WBS1;
+        public String ProjectSFID;
+        public String LongName;
+        public String ShortName;
+        public String Status;
+        public String Principal; //Owner's Employee ID
+        public String ProjMgr; //Project Manager's Employee ID
+        public Decimal FeeDirLab = 0; //P2S_Labor_Total__c
+        public Decimal FeeDirExp = 0; //Direct_Expense__c
+        public Decimal ReimbAllowCons = 0; //Reimbursable_Expense__c
+        public Decimal DirectConsultant = 0; //Direct_Consultant__c
+        public String Org; //Deltek_Org__c
+        public Date StartDate; //EffectiveDate
+        public Date EndDate; //EndDate
+        public String ProjectType; //Deltek_Market_Segment_Code__c
+		public Decimal TotalProject = 0; //Project_Total__c
+        
+        
+        public ProjectObj(String projectNumVal, Id idVal, String longNameVal, String shortNameVal,
+                         String statusVal, String principalVal, String projmgrVal, Decimal feeDirLabVal,
+                         Decimal feeDirExpVal, Decimal reimbVal, Decimal directConsultantVal, 
+                         String orgVal, Date startDateVal, Date endDateVal, String projectTypeVal, 
+                         Decimal totalProjectVal){
+            
+            this.WBS1 = projectNumVal;
+            this.ProjectSFID = idVal;
+            this.LongName = longNameVal;
+            this.ShortName = shortNameVal;
+            if(statusVal != null){                  
+            	this.Status = statusVal.left(1).toUpperCase();
+            }
+            this.Principal = principalVal.leftPad(4, '0');
+            this.ProjMgr = projmgrVal.leftPad(4, '0');
+            this.FeeDirLab = (feeDirLabVal == null) ? 0 : feeDirLabVal;
+            this.FeeDirExp = (feeDirExpVal == null) ? 0 : feeDirExpVal;
+            
+            this.ReimbAllowCons = (reimbVal == null) ? 0 : reimbVal;
+            this.DirectConsultant = (directConsultantVal == null) ? 0 : directConsultantVal;
+            this.Org = orgVal;
+            this.StartDate = startDateVal;
+            this.EndDate = endDateVal;
+            this.ProjectType = projectTypeVal;
+            this.TotalProject = totalProjectVal;                             
+        }
+    }
+    
+    public class ContactObj{
+        public String ContactSFID;
+        public String FirstName;
+        public String LastName;
+        public String Email;
+        public String Phone;
+        public String Fax;
+        public String MobilePhone;
+        public String Salutation;
+        public String Title;
+        public String ContactID;
+        public String ClientID;
+        
+        public ContactObj(Id idVal, String nameVal, String lastVal, String emailVal, String phoneVal, 
+                          String faxVal, String mobileVal, String salutationVal, String titleVal, 
+                          String contactIdVal, string clientIdVal, Id clientSFIdVal ){
+            this.ContactSFID = string.valueOf(idVal);
+            this.FirstName = nameVal;
+            this.LastName = lastVal;
+            this.Email = emailVal;
+			this.Phone = phoneVal;
+            this.Fax = faxVal;
+            this.MobilePhone = mobileVal;
+            this.Salutation = salutationVal;
+            this.Title = titleVal;
+            if(contactIdVal == null){
+                this.ContactID = guidGen(this.ContactSFID);
+            }            
+            else{
+            	this.ContactID = contactIdVal;                
+            }                  
+            if(clientIdVal == null){
+            	this.ClientID = guidGen(clientSFIdVal);
+            }
+            else{
+                this.ClientID = clientIdVal;
+            }            
+        }
+    }
+    
+    public class ClientObj{
+        public String ClientSFID;
+        public String Name;
+        public String BillingStreet;
+        public string BillingCity;
+        public String BillingState;
+        public String BillingPostalCode;
+        public String BillingCountry;
+        public String Phone;
+        public String Fax;
+        public String Status;
+        public String ClientID;
+        public String Website;
+        public String ClientNumber;
+               
+        public ClientObj(Id idVal, String nameVal, String streetVal, String cityVal,
+                         String stateVal,String postalVal, String countryVal, String phoneVal, 
+                         String faxVal, String statusVal, String clientIdVal, String websiteVal,
+                         String clientNumberVal){
+                             
+            this.ClientSFID = string.valueOf(idVal);
+            this.Name = nameVal;
+            this.BillingStreet = streetVal;
+            this.BillingCity = cityVal;
+            this.BillingState = stateVal;
+            this.BillingPostalCode = postalVal;
+            this.BillingCountry = countryVal;
+            this.Phone = phoneVal;
+            this.Fax = faxVal;
+            if(statusVal != null){                 
+            	this.Status = statusVal.left(1).toUpperCase();
+            }
+            if(this.Status == 'N'){ //Handle "New" client case by hard-coding as "A" - Active
+                this.Status = 'A';
+            }
+            if(clientIdVal == null){
+            	this.ClientID = guidGen(this.ClientSFID);
+            }
+            else{
+                this.ClientID = clientIdVal;
+            }
+            this.Website = websiteVal;
+            this.ClientNumber = clientNumberVal;
+                             
+        }
+    }
+    
+    private static string guidGen(Id sfID){
+        string guid = string.valueOf(sfID) + string.valueOf(sfId).left(14);
+        return guid.toUpperCase();  //Can't use SFID because includes non-Hex chars
+		/*
+        Blob b = Crypto.GenerateAESKey(128);
+		String h = EncodingUtil.ConvertTohex(b);
+		String guid = h.SubString(0,32);
+        return guid.toUpperCase();*/  
+    }
+    
+}

@@ -1,0 +1,13 @@
+<apex:page standardController="Order" extensions="OrderIntegrate">
+<apex:form id="frm">
+    <apex:pagemessages id="errMsg"/>
+    <apex:commandButton value="Send Request" action="{!sendRequest}" rerender="frm,errMsg"/>
+
+    <strong>Request JSON:</strong> <br/>
+    <pre>
+        <apex:outputText value="{!requestJson}"/>
+    </pre>
+    <br/>
+    <strong>Request response:</strong> <br/> <apex:outputText value="{!requestResponse}" />
+</apex:form>
+</apex:page>
