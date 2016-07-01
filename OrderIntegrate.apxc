@@ -2,44 +2,97 @@ public class OrderIntegrate{
 
     public string requestJson{get;set;}
     public string requestResponse{get;set;}
+    ROOT responseVal;
+    public order orderObj{get;set;}
+    public Account acc{get;set;}
+    public contact con{get;set;}
+    public list<Phase__c>lstPhase{get;set;}
+    
+    public boolean missingClientNum{get;set;}
     
     public OrderIntegrate(ApexPages.StandardController controller) {
-        requestJson ='';        
+        requestJson =''; 
+        orderObj = new Order();
+        acc = new Account();
+        con = new contact();
+        lstPhase = new list<Phase__c>();
+
         //sendRequest();        
     }
     
     public void sendRequest(){
         string orderId = ApexPages.currentPage().getParameters().get('id');
+        system.debug('Id____'+orderId);
+        responseVal = new ROOT();  
+        string syncStatus ='';
+        string messageClient ='';
+        string messageContact ='';
+        string messagePhase ='';
+        string messageProject ='';
+        orderObj = new Order();
+        acc = new Account();
+        con = new contact();
+        lstPhase = new list<Phase__c>();
+        
         if(string.isNotEmpty(orderId)){
-            Order orderObj = new order();
-            orderObj = [SELECT Id,OwnerId,Project_Manager__r.EmployeeNumber, Deltek_Project_Number__c,OrderNumber,AccountId,BillToContactid,Billing_Client__c,Project_Long_Name__c,Project_Short_Name__c,Name,Status,Project_Total__c,P2S_Labor_Total__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Deltek_Org__c,EffectiveDate,EndDate,Deltek_Market_Segment_Code__c FROM order WHERE id =: orderId LIMIT 1];            
-            User PIROwner = [SELECT EmployeeNumber FROM User WHERE Id=:orderObj.OwnerId];
+            list<order>lstOrder = [SELECT Id,Last_Sync_Status__c,Last_Sync_Response__c ,OwnerId,Project_Manager__r.EmployeeNumber, Deltek_Project_Number__c,OrderNumber,AccountId,BillToContactid,Billing_Client__c,Project_Long_Name__c,Project_Short_Name__c,Name,Status,Project_Total__c,P2S_Labor_Total__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Deltek_Org__c,EffectiveDate,EndDate,Deltek_Market_Segment_Code__c, Deltek_Client_Type__c, Deltek_Horizontal_Services__c, Location_City__c, Location_State__c,P2S_is_Subconsultant__c FROM order WHERE id =: orderId LIMIT 1]; 
+            User PIROwner = null;
+            if(!lstOrder.isEmpty()){
+                orderObj = lstOrder[0];
+                PIROwner = [SELECT EmployeeNumber FROM User WHERE Id =: orderObj.OwnerId];
+            }
             if(orderObj != null){
                 try{  
-                    ProjectObj projWrap = new ProjectObj(orderObj.Deltek_Project_Number__c, orderObj.Id,orderObj.Project_Long_Name__c,orderObj.Project_Short_Name__c, orderObj.Status, PIROwner.EmployeeNumber, orderObj.Project_Manager__r.EmployeeNumber, orderObj.P2S_Labor_Total__c, orderObj.Direct_Expense__c, orderObj.Reimbursable_Expense__c, orderObj.Direct_Consultant__c, orderObj.Deltek_Org__c,orderObj.EffectiveDate, orderObj.EndDate, orderObj.Deltek_Market_Segment_Code__c, orderObj.Project_Total__c);
-                   
-                    Account acc = [SELECT Id,name,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.AccountId LIMIT 1];
+                    ProjectObj projWrap = new ProjectObj(orderObj.Deltek_Project_Number__c, orderObj.Id,orderObj.Project_Long_Name__c,orderObj.Project_Short_Name__c, orderObj.Status, PIROwner.EmployeeNumber, orderObj.Project_Manager__r.EmployeeNumber, orderObj.P2S_Labor_Total__c, orderObj.Direct_Expense__c, orderObj.Reimbursable_Expense__c, orderObj.Direct_Consultant__c, orderObj.Deltek_Org__c,orderObj.EffectiveDate, orderObj.EndDate, orderObj.Deltek_Market_Segment_Code__c, orderObj.Deltek_Client_Type__c, orderObj.Deltek_Horizontal_Services__c, orderObj.Project_Total__c, orderObj.Location_City__c, orderObj.Location_State__c,orderObj.P2S_is_Subconsultant__c);
+                    
+                    if(orderObj.AccountId != null){
+                        list<account>lstAccount = [SELECT Id,name,Last_Sync_Date__c,Last_Sync_Response__c,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.AccountId LIMIT 1];
+                        if(!lstAccount.isEmpty())
+                            acc = lstAccount[0];
+                    }
+                    
                     Account billingAcc = null;
+                    
                     ClientObj billingClientWrap = null;
+                    
                     if(orderObj.Billing_Client__c != null){
-                    	billingAcc = [SELECT Id,name,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.Billing_Client__c LIMIT 1];
-                    	billingClientWrap = new ClientObj(billingAcc.id,billingAcc.name,billingAcc.BillingStreet,billingAcc.BillingCity,billingAcc.BillingState,billingAcc.BillingPostalCode, billingAcc.BillingCountry, billingAcc.Phone, billingAcc.Fax,billingAcc.Status__c,billingAcc.Deltek_Client_ID__c,billingAcc.Website,billingAcc.Client_Number__c);
+                        list<account>lstAcc = [SELECT Id,name,BillingStreet,BillingCity,BillingState,BillingPostalCode,BillingCountry,Phone,Fax,Status__c,Deltek_Client_ID__c,Website,Client_Number__c FROM Account WHERE Id =: orderObj.Billing_Client__c LIMIT 1];
+                        if(!lstAcc.isEmpty())
+                            billingAcc = lstAcc[0];
+                        
+                        billingClientWrap = new ClientObj(billingAcc.id,billingAcc.name,billingAcc.BillingStreet,billingAcc.BillingCity,billingAcc.BillingState,billingAcc.BillingPostalCode, billingAcc.BillingCountry, billingAcc.Phone, billingAcc.Fax,billingAcc.Status__c,billingAcc.Deltek_Client_ID__c,billingAcc.Website,billingAcc.Client_Number__c);
                     }
                     ClientObj clientWrap = new ClientObj(acc.id,acc.name,acc.BillingStreet,acc.BillingCity,acc.BillingState,acc.BillingPostalCode, acc.BillingCountry, acc.Phone, acc.Fax,acc.Status__c,acc.Deltek_Client_ID__c,acc.Website,acc.Client_Number__c);
                     
                     
-                    Contact con = [SELECT Id,AccountId,FirstName,lastName,Email,Phone,Fax,MobilePhone,Salutation,Title,Deltek_Contact_ID__c,Account.Deltek_Client_ID__c FROM Contact WHERE Id =: orderObj.BillToContactid LIMIT 1];
-                    ContactObj conWrap = new ContactObj(con.id,con.FirstName,con.lastName,con.email,con.Phone,con.Fax,con.MobilePhone,con.Salutation,con.Title,con.Deltek_Contact_ID__c,con.Account.Deltek_Client_ID__c, con.AccountId);                    
-                      
-                    list<Phase__c>lstPhase = [SELECT Id,Name,Deltek_Phase_Number__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Project_Manager__c,Start_Date__c,P2S_Contract__r.Name,P2S_Contract__r.Contract_Status__c,P2S_Contract__r.Contract_Type__c, Deltek_Contract_Status__c, Deltek_Contract_Type__c FROM Phase__c WHERE PIR__c =: orderObj.Id LIMIT 10000];
+                    list<contact>lstCon = [SELECT Id,name,AccountId,Last_Sync_Date__c,Last_Sync_Response__c,FirstName,lastName,Email,Phone,Fax,MobilePhone,Salutation,Title,Deltek_Contact_ID__c,MailingCountry,Account.Deltek_Client_ID__c FROM Contact WHERE Id =: orderObj.BillToContactid LIMIT 1];
+                    if(!lstCon.isEmpty()){
+                        con = lstCon[0];
+                    }
+
+                    //Check if either billing or primary client is missing the Client Number
+                    if(billingAcc.Client_Number__c == null || acc.Client_Number__c == null){                                                
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'Client Number on both Billing Client and Primary Client is required to initiate sync'));
+                        missingClientNum = true;
+                        return;
+                    }
+                    
+                    //Removed Contact since they're not using Primary Contact field
+                    //ContactObj conWrap = new ContactObj(con.id,con.FirstName,con.lastName,con.email,con.Phone,con.Fax,con.MobilePhone,con.Salutation,con.Title,con.Deltek_Contact_ID__c,con.Account.Deltek_Client_ID__c, con.AccountId);                    
+                    
+                   
+                    lstPhase = [SELECT Id,Name,Deltek_Phase_Number__c,Last_Sync_Response__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Project_Manager__c,Start_Date__c,Completion_Date__c,P2S_Contract__r.Name,P2S_Contract__r.Contract_Status__c,P2S_Contract__r.Contract_Type__c, Deltek_Contract_Status__c, Deltek_Contract_Type__c, Billing_Type__c FROM Phase__c WHERE PIR__c =: orderObj.Id LIMIT 10000];
                     list<Phase>lstPhaseWrap = new list<Phase>();
                     if(!lstPhase.isEmpty()){
                         for(Phase__c phaseRec : lstPhase){
-                            Phase phaseWrap = new Phase(phaseRec.Deltek_Phase_Number__c, phaseRec.Deltek_Phase_Name__c,string.valueOf(phaseRec.id),phaseRec.Status__c,phaseRec.Project_Manager__c,phaseRec.P2S_Labor_Formula__c,phaseRec.Direct_Expense__c,phaseRec.Reimbursable_Expense__c,phaseRec.Direct_Consultant__c,phaseRec.Start_Date__c, phaseRec.Phase_Total__c,phaseRec.P2S_Contract__r.Name,phaseRec.Deltek_Contract_Status__c,phaseRec.Deltek_Contract_Type__c);
+                            Phase phaseWrap = new Phase(phaseRec.Deltek_Phase_Number__c, phaseRec.Deltek_Phase_Name__c,string.valueOf(phaseRec.id),phaseRec.Status__c,phaseRec.Project_Manager__c,phaseRec.P2S_Labor_Formula__c,phaseRec.Direct_Expense__c,phaseRec.Reimbursable_Expense__c,phaseRec.Direct_Consultant__c,phaseRec.Start_Date__c, phaseRec.Completion_Date__c, phaseRec.Phase_Total__c,phaseRec.P2S_Contract__r.Name,phaseRec.Deltek_Contract_Type__c,phaseRec.Deltek_Contract_Status__c, phaseRec.Billing_Type__c);
                             lstPhaseWrap.add(phaseWrap);
                         }
                     }
-                    jsonGenerator jsonGen = new jsonGenerator(clientWrap,billingClientWrap,conWrap,projWrap,lstPhaseWrap);                
+                    
+                    //Removed Contact since they're not using Primary Contact field
+                    //jsonGenerator jsonGen = new jsonGenerator(clientWrap,billingClientWrap,conWrap,projWrap,lstPhaseWrap);                    
+                    jsonGenerator jsonGen = new jsonGenerator(clientWrap,billingClientWrap,projWrap,lstPhaseWrap);                
                     this.requestJson = JSON.serialize(jsonGen);
                     
                     Http httpProtocol = new Http();
@@ -55,25 +108,158 @@ public class OrderIntegrate{
                     req.setHeader('ProductInstance', 'P2SDevelopment');
                     req.setHeader('ProductInstanceMethod', 'SendProjectData');                
                     req.setBody(requestJson);
-                    req.setTimeout(60000);
+                    system.debug('request_______'+requestJson);
+                    req.setTimeout(120000);
                     //req.setBody('testing');
-                    HttpResponse res = httpProtocol.send(req);
-                    string strResponse = string.valueOf(res.getBody());
-                    requestResponse = strResponse; //debug output to page
+                    string strResponse ='';
+                    if(!test.isRunningTest()){
+                        HttpResponse res = httpProtocol.send(req);
+                        strResponse = res.getBodyAsBlob().toString();
+                    }
+                    else{
+                        strResponse ='';
+                    }
+                    system.debug('Response_______'+strResponse);
                     
-                    /*jsonResponseClass jsonResp = (jsonResponseClass)JSON.deserialize(strResponse, jsonResponseClass.class);
-                    if(jsonResp != null)
-                        requestReponse = jsonResp.Authentication;*/
-                    //system.debug('###__'+requestReponse+'__'+strResponse);
-                    //system.debug('###__' +strResponse);
+                    if(string.isNotBlank(strResponse)){
+                        JSONParser parser = JSON.createParser(strResponse);
+                        while (parser.nextToken() != null /*&& string.valueOf(parser.nextToken()) != ''*/) {
+                            while (parser.nextToken() != null /*&& string.valueOf(parser.nextToken()) != ''*/) {                                
+                                if(parser.getCurrentToken() == JSONToken.START_OBJECT) {
+                                    responseVal = (ROOT)parser.readValueAs(ROOT.class);                                    
+                                }
+                            }
+                        } 
+                        if(responseVal != null && responseVal.JSONData != null && responseVal.JSONData.ROOT != null && responseVal.JSONData.ROOT.REC != null){
+                            
+                            //Removed Contact since they're not using Primary Contact field
+                            /*
+                            if(responseVal.JSONData.ROOT.REC.Contact != null && string.isNotBlank(responseVal.JSONData.ROOT.REC.Contact.ContactSFID) && string.isNotBlank(responseVal.JSONData.ROOT.REC.Contact.ContactID)  && responseVal.JSONData.ROOT.REC.Contact.ContactSFID == con.Id){
+                                    string contactMessage = '';
+                                    if(responseVal.ProcessContact != null && responseVal.ProcessContact.Response != null && responseVal.ProcessContact.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessContact.Response.DLTKVisionMessage.ReturnDesc)){
+                                        contactMessage = 'ProcessContact : '+ responseVal.ProcessContact.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessContact.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                            
+                                    }
+                                    if(responseVal.ProcessContact_CustomTabs != null && responseVal.ProcessContact_CustomTabs.Response != null && responseVal.ProcessContact_CustomTabs.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessContact_CustomTabs.Response.DLTKVisionMessage.ReturnDesc)){
+                                        contactMessage = contactMessage + ' ~ ProcessContact_CustomTabs : '+ responseVal.ProcessContact_CustomTabs.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessContact_CustomTabs.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                    }
+                                    //contact conUpdate = new contact();
+                                    //con.Id = responseVal.JSONData.ROOT.REC.Contact.ContactSFID;
+                                    con.Deltek_Contact_ID__c = responseVal.JSONData.ROOT.REC.Contact.ClientID;
+                                    con.Last_Sync_Date__c = date.today();
+                                    system.debug('@@@___'+con);
+                                    if(string.isNotBlank(contactMessage)){
+                                        con.Last_Sync_Response__c = contactMessage;
+                                        messageContact = contactMessage;
+                                    }
+                                    update con;                                 
+                            }
+                            system.debug('@@@1___');*/
+                            if(responseVal.JSONData.ROOT.REC.Client != null && string.isNotBlank(responseVal.JSONData.ROOT.REC.Client.ClientSFID) && string.isNotBlank(responseVal.JSONData.ROOT.REC.Client.ClientID) && responseVal.JSONData.ROOT.REC.Client.ClientSFID == acc.Id){
+                                    string clientMessage = '';
+                                    if(responseVal.ProcessClient != null && responseVal.ProcessClient.Response != null && responseVal.ProcessClient.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessClient.Response.DLTKVisionMessage.ReturnDesc)){
+                                        clientMessage = 'ProcessClient : '+ responseVal.ProcessClient.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessClient.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                    }
+                                	
+                                    if(string.valueOf(responseVal.ProcessClient_CustomTabs) != '' && responseVal.ProcessClient_CustomTabs != null && responseVal.ProcessClient_CustomTabs.Response != null && responseVal.ProcessClient_CustomTabs.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessClient_CustomTabs.Response.DLTKVisionMessage.ReturnDesc)){
+                                        clientMessage = clientMessage + ' ~ ProcessClient_CustomTabs : '+ responseVal.ProcessClient_CustomTabs.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessClient_CustomTabs.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                    }
+                                    /*if(string.isNotBlank(responseVal.ProcessClientCLAddress)){
+                                        clientMessage = clientMessage + ' - ProcessClientCLAddress : '+ responseVal.ProcessClientCLAddress;
+                                    }*/
+                                    acc.Deltek_Client_ID__c = responseVal.JSONData.ROOT.REC.Client.ClientID;
+                                    acc.Last_Sync_Date__c = date.today();
+                                    if(string.isNotBlank(clientMessage)){
+                                        acc.Last_Sync_Response__c = clientMessage;
+                                        messageClient = clientMessage;
+                                    }
+                                update acc;                                 
+                            }                            
+                            map<string,string>mapPhaseMessage = new map<string,string>();
+                            if(!responseVal.JSONData.ROOT.REC.Phases.isEmpty() && !responseVal.ProcessPhase.Response.isEmpty()){
+                                 for(Response resp : responseVal.ProcessPhase.Response){
+                                     if(resp.DLTKVisionMessage != null && string.isNotBlank(resp.DLTKVisionMessage.ReturnDesc) && string.isNotBlank(resp.PrimaryFields.WBS2)){
+                                        string messageVal = 'ProcessPhase : '+resp.DLTKVisionMessage.ReturnDesc;
+                                        if(resp.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                        mapPhaseMessage.put(resp.PrimaryFields.WBS2,messageVal);
+                                     }
+                                 }
+                            }
+                            if(!responseVal.JSONData.ROOT.REC.Phases.isEmpty() && !responseVal.ProcessPhase_CustomTabs.Response.isEmpty()){
+                                 for(Response respTab : responseVal.ProcessPhase_CustomTabs.Response){
+                                     if(respTab.DLTKVisionMessage != null && string.isNotBlank(respTab.DLTKVisionMessage.ReturnDesc) && string.isNotBlank(respTab.PrimaryFields.WBS2)){
+                                        if(mapPhaseMessage.containsKey(respTab.PrimaryFields.WBS2)){
+                                            string messageValueMap = mapPhaseMessage.get(respTab.PrimaryFields.WBS2);
+                                            messageValueMap = messageValueMap+ ' ~ ProcessPhase_CustomTabs : '+respTab.DLTKVisionMessage.ReturnDesc;
+                                            if(respTab.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                                syncStatus = 'Partial Failure';
+                                            mapPhaseMessage.put(respTab.PrimaryFields.WBS2,messageValueMap);
+                                        }
+                                        else{
+                                            string messageValue = 'ProcessPhase_CustomTabs : '+respTab.DLTKVisionMessage.ReturnDesc;
+                                            if(respTab.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                                syncStatus = 'Partial Failure';
+                                            mapPhaseMessage.put(respTab.PrimaryFields.WBS2,messageValue);
+                                        }
+                                     }
+                                 }
+                            }
+                            if(!mapPhaseMessage.isEmpty()){
+                                for(Phase__c phaseRecord : lstPhase){
+                                    if(mapPhaseMessage.containsKey(phaseRecord.Deltek_Phase_Number__c) && string.isNotBlank(mapPhaseMessage.get(phaseRecord.Deltek_Phase_Number__c))){
+                                        phaseRecord.Last_Sync_Date__c = date.today();
+                                        phaseRecord.Last_Sync_Response__c = mapPhaseMessage.get(phaseRecord.Deltek_Phase_Number__c);
+                                    }
+                                }
+                                update lstPhase;
+                            }
+                            if(responseVal.JSONData.ROOT.REC.Project != null && string.isNotBlank(responseVal.JSONData.ROOT.REC.Project.ProjectSFID) && responseVal.JSONData.ROOT.REC.Project.ProjectSFID == orderObj.Id){
+                                    string projectMessage = '';
+                                    if(responseVal.ProcessProject != null && responseVal.ProcessProject.Response != null && responseVal.ProcessProject.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessProject.Response.DLTKVisionMessage.ReturnDesc)){
+                                        projectMessage = 'ProcessProject : '+ responseVal.ProcessProject.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessProject.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                    }
+                                    if(responseVal.ProcessProject_CustomTabs != null && responseVal.ProcessProject_CustomTabs.Response != null && responseVal.ProcessProject_CustomTabs.Response.DLTKVisionMessage != null && string.isNotBlank(responseVal.ProcessProject_CustomTabs.Response.DLTKVisionMessage.ReturnDesc)){
+                                        projectMessage = projectMessage + ' ~ ProcessProject_CustomTabs : '+ responseVal.ProcessProject_CustomTabs.Response.DLTKVisionMessage.ReturnDesc;
+                                        if(responseVal.ProcessProject_CustomTabs.Response.DLTKVisionMessage.ReturnDesc.containsIgnoreCase('error'))
+                                            syncStatus = 'Partial Failure';
+                                    }
+                                    orderObj.Last_Sync_Date__c = date.today();
+                                    if(string.isNotBlank(syncStatus))
+                                        orderObj.Last_Sync_Status__c = syncStatus;
+                                    else
+                                        orderObj.Last_Sync_Status__c = 'Sync Successful';
+                                    if(string.isNotBlank(projectMessage)){
+                                        orderObj.Last_Sync_Response__c = projectMessage;
+                                        messageProject = projectMessage;
+                                    }
+                                update orderObj;                                 
+                            }
+                        }
+                    }
                 }
                 catch(exception e){
+                    if(orderObj != null){
+                        orderObj.Last_Sync_Status__c = 'Sync Failed';
+                        update orderObj;
+                    }
                     ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.Error,e.getMessage()));
-                	system.debug('Send Request Error----' + e.getMessage() + 'Line---' + e.getLineNumber()); 
+                    system.debug('Send Request Error----' + e.getMessage() + 'Line---' + e.getLineNumber()); 
                 }
             }            
         }
     }
+    
     
     public class jsonResponseClass{
         public string Authentication;
@@ -81,20 +267,21 @@ public class OrderIntegrate{
     public class jsonGenerator{        
         public ClientObj Client;
         public ClientObj billingClient;
-        public ContactObj Contact;        
+        //public ContactObj Contact;        
         public ProjectObj Project;
         public Phase[] Phases;
         
-        public jsonGenerator(ClientObj clientVal, ClientObj billingClientVal, ContactObj conObjVal,ProjectObj projectVal,List<Phase>lstPhase){
+        //public jsonGenerator(ClientObj clientVal, ClientObj billingClientVal, ContactObj conObjVal,ProjectObj projectVal,List<Phase>lstPhase){
+        public jsonGenerator(ClientObj clientVal, ClientObj billingClientVal,ProjectObj projectVal,List<Phase>lstPhase){
             this.Client = clientVal;
             this.billingClient = billingClientVal;
-            this.Contact = conObjVal;
+            //this.Contact = conObjVal;
             this.Project = projectVal;
             this.Phases = lstPhase;
         }
     }
 
-//Id,Name,Deltek_Phase_Number__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Project_Manager__c,Start_Date__c
+    //Id,Name,Deltek_Phase_Number__c,Deltek_Phase_Name__c,Status__c,Phase_Total__c,P2S_Labor_Formula__c,Direct_Expense__c,Reimbursable_Expense__c,Project_Manager__c,Start_Date__c
     
     public class Phase{
         public String WBS2;
@@ -108,44 +295,56 @@ public class OrderIntegrate{
         public Decimal ReimbAllowCons = 0;
         public Decimal DirectConsultant = 0;
         public Date StartDate;
+        public Date EndDate;
         public Decimal PhaseTotal = 0;
         public String ContractNumber;
         public String ContractType;
         public String ContractStatus;
+        public String BillingType;
         
         public Phase(String phaseNumVal, String nameVal, String idVal, String statusVal, 
-                     String projMgrVal, Decimal feeDirLabVal, Decimal feeDirExpVal, Decimal reimbVal,
-                     Decimal directConsultantVal, Date startDateVal, Decimal totalVal, String contractNumVal, 
-                     String contractTypeVal, String contractStatusVal){
-                         
+        String projMgrVal, Decimal feeDirLabVal, Decimal feeDirExpVal, Decimal reimbVal,
+        Decimal directConsultantVal, Date startDateVal, Date endDateVal, Decimal totalVal, String contractNumVal, 
+        String contractTypeVal, String contractStatusVal, String billingTypeVal){
+            
             this.WBS2 = phaseNumVal;
             this.Name = nameVal;
             this.LongName = nameVal;
             this.PhaseSFID = idVal;
             if(statusVal != null){ 
-            	this.Status = statusVal.left(1).toUpperCase();
+                this.Status = statusVal.left(1).toUpperCase();
             }
             if(projMgrVal != null){
-            	this.ProjMgr = projMgrVal.right(3).leftPad(4,'0');
+                this.ProjMgr = projMgrVal.right(3).leftPad(4,'0');
             }
             this.FeeDirLab = (feeDirLabVal == null) ? 0 : feeDirLabVal;
             this.FeeDirExp = (feeDirExpVal == null) ? 0 : feeDirExpVal;
             this.ReimbAllowCons = (reimbVal == null) ? 0 : reimbVal;
             this.DirectConsultant = (directConsultantVal == null) ? 0 : directConsultantVal;
             this.StartDate = startDateVal;
+            this.EndDate = endDateVal;
             this.PhaseTotal = totalVal;
             this.ContractNumber = contractNumVal;
             //To-do: Parse the codes from the Picklist values for passing to Deltek
             if(contractTypeVal != null){
-            	this.ContractType = contractTypeVal.right(2);
+                this.ContractType = contractTypeVal.right(2);
             } 
-            if(contractTypeVal != null){
-            	this.ContractStatus = contractStatusVal.right(2);
-            }                                                
-        }
-    }
+            if(contractStatusVal != null){
+                this.ContractStatus = contractStatusVal.right(2);
+            }
+            //billingType translations
+            this.BillingType = 'NA';
+            if(billingTypeVal.contains('T & M')){
+                this.BillingType = 'T & M';
+            }
+            else if(billingTypeVal == 'Fixed Fee'){
+                this.BillingType = 'Fixed Fee';
+            }
 
-//[SELECT Id,Deltek_Project_Number__c,OrderNumber,AccountId,BillToContactid,Billing_Client__c,Project_Long_Name__c,Project_Short_Name__c,Name,Status,Project_Total__c,P2S_Labor_Total__c,Direct_Expense__c,Reimbursable_Expense__c,Direct_Consultant__c,Deltek_Org__c,EffectiveDate,EndDate,Deltek_Market_Segment_Code__c FROM order WHERE id =: orderId LIMIT 1];            
+        }
+        //public Phase(){}
+    }
+           
     
     public class ProjectObj{
         public String WBS1;
@@ -163,24 +362,29 @@ public class OrderIntegrate{
         public Date StartDate; //EffectiveDate
         public Date EndDate; //EndDate
         public String ProjectType; //Deltek_Market_Segment_Code__c
-		public Decimal TotalProject = 0; //Project_Total__c
-        
+        public String ClientType;
+        public String HorizontalServices; 
+        public Decimal TotalProject = 0; //Project_Total__c
+        public String City;
+        public String State;
+        public String Role;
         
         public ProjectObj(String projectNumVal, Id idVal, String longNameVal, String shortNameVal,
-                         String statusVal, String principalVal, String projmgrVal, Decimal feeDirLabVal,
-                         Decimal feeDirExpVal, Decimal reimbVal, Decimal directConsultantVal, 
-                         String orgVal, Date startDateVal, Date endDateVal, String projectTypeVal, 
-                         Decimal totalProjectVal){
+        String statusVal, String principalVal, String projmgrVal, Decimal feeDirLabVal,
+        Decimal feeDirExpVal, Decimal reimbVal, Decimal directConsultantVal, 
+        String orgVal, Date startDateVal, Date endDateVal, String projectTypeVal, 
+        String clientTypeVal, String horServVal, Decimal totalProjectVal,
+        String cityVal, String stateVal, Boolean p2sIsSubVal){
             
             this.WBS1 = projectNumVal;
             this.ProjectSFID = idVal;
             this.LongName = longNameVal;
             this.ShortName = shortNameVal;
             if(statusVal != null){                  
-            	this.Status = statusVal.left(1).toUpperCase();
+                this.Status = statusVal.left(1).toUpperCase();
             }
-            this.Principal = principalVal.leftPad(4, '0');
-            this.ProjMgr = projmgrVal.leftPad(4, '0');
+            this.Principal = principalVal != null ? principalVal.leftPad(4, '0') : '';
+            this.ProjMgr = projmgrVal != null ? projmgrVal.leftPad(4, '0') :'';
             this.FeeDirLab = (feeDirLabVal == null) ? 0 : feeDirLabVal;
             this.FeeDirExp = (feeDirExpVal == null) ? 0 : feeDirExpVal;
             
@@ -190,8 +394,20 @@ public class OrderIntegrate{
             this.StartDate = startDateVal;
             this.EndDate = endDateVal;
             this.ProjectType = projectTypeVal;
-            this.TotalProject = totalProjectVal;                             
+            this.ClientType = clientTypeVal;
+            this.HorizontalServices = horServVal;
+            this.TotalProject = totalProjectVal;  
+            this.City = cityVal;
+            if(stateVal != null){
+            	this.State = stateVal.left(2).toUpperCase();
+            }
+            this.Role = 'P'; //Prime
+            if(p2sIsSubVal){
+            	this.Role = 'C'; 	 //Consultant  
+            }            
+            
         }
+        public ProjectObj(){}
     }
     
     public class ContactObj{
@@ -208,32 +424,32 @@ public class OrderIntegrate{
         public String ClientID;
         
         public ContactObj(Id idVal, String nameVal, String lastVal, String emailVal, String phoneVal, 
-                          String faxVal, String mobileVal, String salutationVal, String titleVal, 
-                          String contactIdVal, string clientIdVal, Id clientSFIdVal ){
+        String faxVal, String mobileVal, String salutationVal, String titleVal, 
+        String contactIdVal, string clientIdVal, Id clientSFIdVal ){
             this.ContactSFID = string.valueOf(idVal);
             this.FirstName = nameVal;
             this.LastName = lastVal;
             this.Email = emailVal;
-			this.Phone = phoneVal;
+            this.Phone = phoneVal;
             this.Fax = faxVal;
             this.MobilePhone = mobileVal;
             this.Salutation = salutationVal;
             this.Title = titleVal;
-            if(contactIdVal == null){
+            if(contactIdVal == null && ContactSFID != null){
                 this.ContactID = guidGen(this.ContactSFID);
             }            
             else{
-            	this.ContactID = contactIdVal;                
+                this.ContactID = contactIdVal;                
             }                  
-            if(clientIdVal == null){
-            	this.ClientID = guidGen(clientSFIdVal);
+            if(clientIdVal == null && ContactSFID != null){
+                this.ClientID = guidGen(clientSFIdVal);
             }
             else{
                 this.ClientID = clientIdVal;
             }            
         }
-    }
-    
+        public ContactObj(){}
+    }    
     public class ClientObj{
         public String ClientSFID;
         public String Name;
@@ -248,12 +464,12 @@ public class OrderIntegrate{
         public String ClientID;
         public String Website;
         public String ClientNumber;
-               
+        
         public ClientObj(Id idVal, String nameVal, String streetVal, String cityVal,
-                         String stateVal,String postalVal, String countryVal, String phoneVal, 
-                         String faxVal, String statusVal, String clientIdVal, String websiteVal,
-                         String clientNumberVal){
-                             
+        String stateVal,String postalVal, String countryVal, String phoneVal, 
+        String faxVal, String statusVal, String clientIdVal, String websiteVal,
+        String clientNumberVal){
+            
             this.ClientSFID = string.valueOf(idVal);
             this.Name = nameVal;
             this.BillingStreet = streetVal;
@@ -264,30 +480,127 @@ public class OrderIntegrate{
             this.Phone = phoneVal;
             this.Fax = faxVal;
             if(statusVal != null){                 
-            	this.Status = statusVal.left(1).toUpperCase();
+                this.Status = statusVal.left(1).toUpperCase();
             }
             if(this.Status == 'N'){ //Handle "New" client case by hard-coding as "A" - Active
                 this.Status = 'A';
             }
-            if(clientIdVal == null){
-            	this.ClientID = guidGen(this.ClientSFID);
+            if(clientIdVal == null && ClientSFID != null){
+                this.ClientID = guidGen(this.ClientSFID);
             }
             else{
                 this.ClientID = clientIdVal;
             }
             this.Website = websiteVal;
             this.ClientNumber = clientNumberVal;
-                             
+            
         }
+        public ClientObj(){}
+    }
+    public class ROOT{
+        public JSONData JSONData;
+        public ProcessClient ProcessClient;
+        public ProcessClient_CustomTabs ProcessClient_CustomTabs;
+        //public ProcessClientCLAddress ProcessClientCLAddress;
+        
+        public ProcessContact ProcessContact;
+        public ProcessContact_CustomTabs ProcessContact_CustomTabs;
+        public ProcessProject ProcessProject;
+        public ProcessProject_CustomTabs ProcessProject_CustomTabs;
+        public ProcessPhase ProcessPhase;
+        public ProcessPhase_CustomTabs ProcessPhase_CustomTabs;
+        public ProcessSalesforceContracts ProcessSalesforceContracts;
+        public ProcessPhaseSalesforceContracts ProcessPhaseSalesforceContracts;     
+    }
+    
+    public class JSONData{      
+        public JSONDataROOT ROOT;
+    }
+    
+    public class JSONDataROOT{
+        public REC REC;
+    }
+    
+    public class REC{
+        public ProjectObj Project;
+        public list<Phase> Phases;
+        public ContactObj Contact;
+        public ClientObj Client;
+        public billingClient billingClient;     
+    }
+    public class billingClient{     
+    }
+    
+    public class ProcessClient{
+        public Response Response;
+    }
+    
+    public class ProcessClient_CustomTabs{
+        public Response Response;
+    }
+    
+    public class ProcessClientCLAddress{
+        public Response Response;
+    }
+    
+    public class ProcessContact{
+        public Response Response;
+    }
+
+    public class ProcessContact_CustomTabs{
+        public Response Response;
+    }   
+    
+    public class ProcessProject{
+        public Response Response;
+    }   
+    
+    public class ProcessProject_CustomTabs{
+        public Response Response;
+    }   
+    
+    public class ProcessPhase{
+        public list<Response> Response;
+    }
+    
+    public class ProcessPhase_CustomTabs{
+        public list<Response> Response;
+    }
+    
+    public class ProcessSalesforceContracts{
+        public Response Response;
+    }
+    
+    public class ProcessPhaseSalesforceContracts{
+        public list<Response> Response;
+    }
+    
+    public class Response{
+        public string Method;
+        public PrimaryFields PrimaryFields;
+        public DLTKVisionMessage DLTKVisionMessage;     
+    }       
+    
+    public class PrimaryFields{     
+        public string ClientID;
+        public string ContactID;
+        public string WBS1;
+        public string WBS2;     
+    }
+    
+    
+    public class DLTKVisionMessage{
+        public string ReturnCode;
+        public string ReturnDesc;
     }
     
     private static string guidGen(Id sfID){
         string guid = string.valueOf(sfID) + string.valueOf(sfId).left(14);
         return guid.toUpperCase();  //Can't use SFID because includes non-Hex chars
-		/*
+        /*
         Blob b = Crypto.GenerateAESKey(128);
-		String h = EncodingUtil.ConvertTohex(b);
-		String guid = h.SubString(0,32);
+        String h = EncodingUtil.ConvertTohex(b);
+        String guid = h.SubString(0,32);
         return guid.toUpperCase();*/  
     }
     

@@ -1,13 +1,54 @@
 <apex:page standardController="Order" extensions="OrderIntegrate">
-<apex:form id="frm">
-    <apex:pagemessages id="errMsg"/>
-    <apex:commandButton value="Send Request" action="{!sendRequest}" rerender="frm,errMsg"/>
+    <head>
+        <style>
+        .blurredpop{
+            display:none; 
+            position:fixed; 
+            top:0; 
+            left:0px; 
+            background-color:white; 
+            height:100%; 
+            width:100%; 
+            z-index:99999999999; 
+            opacity:0.6;
+        }
+        .blurredpopinternal{
+            display:block; 
+            text-align:center; 
+            vertical-align:middle;
+             height:auto; 
+             width:auto; 
+             position:relative; 
+             top:40%;
+             z-index:100;
+             margin:0 auto;
+        }
+        </style>
+    </head>
+    <apex:form id="frm">
+        <apex:pagemessages id="errMsg"/>
+        <div id="blurred" class="blurredpop">
+            <!-- status bar popup starts here --> 
+            <div id="load" class="blurredpopinternal">
+                <img src="{!URLFOR($Resource.loading)}"/>
+            </div>
+        </div> 
+        <apex:actionStatus onstart="document.getElementById('blurred').style.display='block';" onstop="document.getElementById('blurred').style.display='none';"  id="statusimage"/> 
+        <apex:commandButton value="Send to Deltek" action="{!sendRequest}" rerender="frm,errMsg" status="statusimage" style="margin-left:40%;margin-bottom:2%;margin-top:2%;" rendered="{!missingClientNum != TRUE}" />
 
-    <strong>Request JSON:</strong> <br/>
-    <pre>
-        <apex:outputText value="{!requestJson}"/>
-    </pre>
-    <br/>
-    <strong>Request response:</strong> <br/> <apex:outputText value="{!requestResponse}" />
-</apex:form>
+        <apex:pageBlock title="Response"  rendered="{!missingClientNum != TRUE}">
+            <apex:pageBlocksection columns="2">
+                <apex:outputField value="{!orderObj.Deltek_Project_Number__c}" label="Project Number"/>
+                <apex:outputField value="{!orderObj.Last_Sync_Response__c}" label="Order Response"/>
+                <apex:outputField value="{!acc.name}" label="Client Name"/>
+                <apex:outputField value="{!acc.Last_Sync_Response__c}" label="Client Response"/>
+                <!--<apex:outputField value="{!con.name}" label="Bill to Contact name"/>-->
+                <!--<apex:outputField value="{!con.Last_Sync_Response__c}" label="Bill to Contact Response"/>-->
+                <apex:repeat value="{!lstPhase}" var="phase">
+                    <apex:outputField value="{!phase.Deltek_Phase_Number__c}" label="Phase Number"/>
+                    <apex:outputField value="{!phase.Last_Sync_Response__c}" label="Phase Response"/>
+                </apex:repeat>
+            </apex:pageBlocksection>
+        </apex:pageBlock>
+    </apex:form>
 </apex:page>
